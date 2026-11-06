@@ -48,7 +48,8 @@ let owner=!!LS.getItem('duty_token'),dirty=false,openD=null,saving=false,err='',
 const fmt=d=>{const p=d.split('-');return +p[2]+' '+M[p[1]-1]};
 const nw=new Date(),today=nw.getFullYear()+'-'+String(nw.getMonth()+1).padStart(2,'0')+'-'+String(nw.getDate()).padStart(2,'0');
 const ago=d=>Math.round((Date.parse(today)-Date.parse(d))/864e5);
-const getDates=()=>{const a=[];for(let t=Date.parse(S.start);t<=Date.parse(S.end);t+=6048e5)a.push(new Date(t).toISOString().slice(0,10));return a};
+const WD=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'],wd=d=>WD[new Date(d+'T00:00:00Z').getUTCDay()];
+const getDates=()=>{const a=new Set(Object.keys(S.duty));for(let t=Date.parse(S.start);t<=Date.parse(S.end);t+=6048e5)a.add(new Date(t).toISOString().slice(0,10));return [...a].sort()};
 function render(){
 const app=document.getElementById('app');if(!S){app.textContent='Загрузка…';return}
 const dates=getDates(),ppl=S.people,st={};ppl.forEach(p=>st[p.n]={c:0,l:null,p:null});
@@ -58,14 +59,14 @@ const next=dates.find(d=>d>today),max=Math.max(1,...Object.values(st).map(o=>o.c
 const cands=ppl.filter(p=>!p.ex&&!nd.includes(p.n)).map((p,i)=>({p,s:st[p.n],i})).sort((a,b)=>a.s.c-b.s.c||(a.s.l||'').localeCompare(b.s.l||'')||a.i-b.i).slice(0,6);
 let h=`<h2 style="margin-bottom:12px">Кандидаты на ближайший наряд</h2><div class="grid">`;
 cands.forEach((x,k)=>{h+=`<div class="cand"><div class="k">№${k+1}</div><div class="n">${x.p.n}</div><div class="r">${x.s.l?'Нарядов: '+x.s.c+' · был '+fmt(x.s.l)+' ('+ago(x.s.l)+' дн. назад)':'Ещё ни разу не ходил'}</div></div>`});
-h+=`</div><h2>Весь список</h2><p class="sub">Фамилия, последний наряд и количество нарядов</p><div class="card"><table><tr><th>№</th><th>Фамилия, инициалы</th><th>Последний наряд</th><th>Нарядов<div style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;max-width:190px;margin-top:2px">Количество нарядов ведется за текущий семестр</div></th></tr>`;
+h+=`</div><h2>Весь список</h2><p class="sub">Фамилия, последний наряд и количество нарядов</p><div class="card"><table><tr><th>№</th><th>Фамилия, инициалы</th><th>Последний наряд</th><th>Нарядов<div style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;max-width:190px;margin-top:2px">Количество нарядов ведется за текущий семестр, а не общее количество</div></th></tr>`;
 ppl.forEach((p,i)=>{const s=st[p.n];
 const tag=p.ex?'<span class="tag x">Не назначается</span>':s.p?'<span class="tag p">Назначен '+fmt(s.p)+'</span>':'<span class="tag">Доступен</span>';
-h+=`<tr><td>${i+1}</td><td><b>${p.n}</b>${owner?' <button class="ed" data-a="del" data-i="'+i+'">✕</button>':''}</td><td>${owner?'<input class="in" type="date" data-f="ol" data-i="'+i+'" value="'+(s.l||'')+'">':(s.l?fmt(s.l)+' <span class="em">('+ago(s.l)+' дн.)</span>':'<span class="em">не ходил</span>')}</td><td>${owner?'<input class="in" type="number" min="0" style="width:64px" data-f="oc" data-i="'+i+'" value="'+s.c+'">':'<b>'+s.c+'</b>'}</td></tr>`});
+h+=`<tr><td>${i+1}</td><td><b>${p.n}</b>${owner?' <button class="ed" data-a="del" data-i="'+i+'">✕</button>':''}</td><td>${owner?'<input class="in" type="date" max="'+today+'" data-f="ol" data-i="'+i+'" value="'+(s.l||'')+'">':(s.l?fmt(s.l)+' <span class="em">('+ago(s.l)+' дн.)</span>':'<span class="em">не ходил</span>')}</td><td>${owner?'<input class="in" type="number" min="0" style="width:64px" data-f="oc" data-i="'+i+'" value="'+s.c+'">':'<b>'+s.c+'</b>'}</td></tr>`});
 h+='</table></div>';
 if(owner)h+='<p style="margin-top:10px"><input class="in" id="np" placeholder="Фамилия И.О."> <button data-a="add">Добавить человека</button></p>';
 h+=`<h2 style="margin-bottom:12px">График нарядов</h2><div class="dts">`;
-const card=d=>{const l=S.duty[d]||[];let c=`<div class="dt ${d===next?'nx':''}"><h4><span>Чт, ${fmt(d)}</span><span class="em">${d===next?'ближайший':''}</span></h4>${l.length?l.map(n=>'<span class="chip">'+n+'</span>').join(''):'<span class="em">никто не назначен</span>'}${owner?'<div><button class="ed" data-a="open" data-d="'+d+'">'+(openD===d?'Закрыть':'Изменить')+'</button></div>':''}`;
+const card=d=>{const l=S.duty[d]||[];let c=`<div class="dt ${d===next?'nx':''}"><h4><span>${wd(d)}, ${fmt(d)}</span><span class="em">${d===next?'ближайший':''}</span></h4>${l.length?l.map(n=>'<span class="chip">'+n+'</span>').join(''):'<span class="em">никто не назначен</span>'}${owner?'<div><button class="ed" data-a="open" data-d="'+d+'">'+(openD===d?'Закрыть':'Изменить')+'</button></div>':''}`;
 if(owner&&openD===d)c+='<div class="pick">'+ppl.map((p,i)=>`<button class="${l.includes(p.n)?'on':''}" ${p.ex?'disabled':''} data-a="tog" data-d="${d}" data-i="${i}">${p.n}</button>`).join('')+'</div>';
 return c+'</div>'};
 dates.filter(d=>d>today).forEach(d=>h+=card(d));
@@ -94,7 +95,7 @@ else if(a==='del'){const p=S.people[+b.dataset.i];if(!confirm('Удалить '+
 else if(a==='add'){const v=document.getElementById('np').value.trim();if(!v||S.people.some(p=>p.n===v))return;S.people.push({n:v});dirty=true;ok=''}
 else if(a==='save'){save();return}
 render()});
-document.getElementById('app').addEventListener('change',e=>{const t=e.target;if(!owner||!t.dataset.f)return;const p=S.people[+t.dataset.i];if(t.dataset.f==='oc')p.oc=t.value===''?null:Math.max(0,parseInt(t.value)||0);else p.ol=t.value||null;dirty=true;ok='';render()});
+document.getElementById('app').addEventListener('change',e=>{const t=e.target;if(!owner||!t.dataset.f)return;const p=S.people[+t.dataset.i];if(t.dataset.f==='oc')p.oc=t.value===''?null:Math.max(0,parseInt(t.value)||0);else{p.ol=t.value||null;if(t.value){const l=S.duty[t.value]||(S.duty[t.value]=[]);if(!l.includes(p.n))l.push(p.n)}}dirty=true;ok='';render()});
 render();
 fetch('data.json?'+Date.now()).then(r=>r.json()).then(d=>{S=d;render()}).catch(()=>{document.getElementById('app').textContent='Не удалось загрузить data.json (откройте сайт по адресу GitHub Pages, а не как файл).'});
 </script></body></html>
