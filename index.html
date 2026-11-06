@@ -58,6 +58,8 @@ S.people.forEach(p=>{const o=st[p.n];o.c=Math.max(0,o.c0+(p.b||0));o.l=o.l0||p.o
 function migrate(){const st=calc();S.people.forEach(p=>{const o=st[p.n];
 if(p.oc!=null){const b=p.oc-o.c0;if(b)p.b=b;else delete p.b;delete p.oc}
 if(p.ol!=null&&(o.l0||!p.ol))delete p.ol})}
+const DZ_END='2026-12-24';let openZ=null;
+const dzDates=()=>[today,...getDates().filter(d=>d>today&&d<=DZ_END)];
 function render(){
 const app=document.getElementById('app');if(!S){app.textContent='Загрузка…';return}
 const dates=getDates(),ppl=S.people,st=calc();
@@ -78,6 +80,11 @@ return c+'</div>'};
 dates.filter(d=>d>today).forEach(d=>h+=card(d));
 h+='</div>';
 h+=`<h2>Ранее ходили в наряд</h2><p class="sub">Прошедшие наряды, от последнего к первому</p><div class="dts">`+[...new Set([...dates.filter(d=>d<=today),...Object.keys(S.duty).filter(d=>d<=today)])].sort().reverse().map(card).join('')+'</div>';
+h+=`<h2>Дежурство</h2><p class="sub">Сегодня и ближайшие даты до 24 декабря</p><div class="dts">`;
+const dz=S.dezh||{};
+h+=dzDates().map(d=>{const l=dz[d]||[];let c=`<div class="dt ${d===today?'nx':''}"><h4><span>${wd(d)}, ${fmt(d)}</span><span class="em">${d===today?'сегодня':''}</span></h4>${l.length?l.map(n=>'<span class="chip">'+n+'</span>').join(''):'<span class="em">никто не назначен</span>'}${owner?'<div><button class="ed" data-a="zopen" data-d="'+d+'">'+(openZ===d?'Закрыть':'Изменить')+'</button></div>':''}`;
+if(owner&&openZ===d)c+='<div class="pick">'+ppl.map((p,i)=>`<button class="${l.includes(p.n)?'on':''}" data-a="ztog" data-d="${d}" data-i="${i}">${p.n}</button>`).join('')+'</div>';
+return c+'</div>'}).join('')+'</div>';
 if(owner&&(dirty||err||ok))h+=`<div class="save"><span>${err||ok||'Есть несохранённые изменения'}</span>${dirty?'<button data-a="save">'+(saving?'Сохранение…':'Сохранить')+'</button>':''}</div>`;
 h+=`<p class="em" style="text-align:center;margin-top:30px"><a href="#" data-a="${owner?'logout':'login'}">${owner?'Выйти из редактора':'Вход для редактора'}</a></p>`;
 app.innerHTML=h}
@@ -85,6 +92,7 @@ function repo(){let r=location.hostname.endsWith('github.io')&&location.pathname
 if(!r){r=prompt('Репозиторий в формате логин/имя-репозитория');if(r)LS.setItem('duty_repo',r.trim())}return r&&r.trim()}
 async function save(){const r=repo(),t=LS.getItem('duty_token');if(!r){err='Не указан репозиторий';return render()}
 saving=true;err=ok='';render();
+for(const d in S.dezh||{})if(d<today)delete S.dezh[d];
 try{const u='https://api.github.com/repos/'+r+'/contents/data.json',h={Authorization:'Bearer '+t,Accept:'application/vnd.github+json'};
 const g=await fetch(u,{headers:h});if(!g.ok)throw new Error('чтение, код '+g.status);const sha=(await g.json()).sha;
 const p=await fetch(u,{method:'PUT',headers:h,body:JSON.stringify({message:'Обновление нарядов',content:btoa(unescape(encodeURIComponent(JSON.stringify(S,null,1)))),sha})});
@@ -97,8 +105,10 @@ else if(!owner)return;
 else if(a==='open')openD=openD===b.dataset.d?null:b.dataset.d;
 else if(a==='tog'){const d=b.dataset.d,n=S.people[+b.dataset.i].n,l=S.duty[d]||(S.duty[d]=[]),k=l.indexOf(n);k<0?l.push(n):l.splice(k,1);if(!l.length)delete S.duty[d];dirty=true;ok=''}
 else if(a==='ex'){const p=S.people[+b.dataset.i];if(p.ex)delete p.ex;else{p.ex=1;for(const d in S.duty){S.duty[d]=S.duty[d].filter(x=>x!==p.n);if(!S.duty[d].length)delete S.duty[d]}}dirty=true;ok=''}
-else if(a==='del'){const p=S.people[+b.dataset.i];if(!confirm('Удалить '+p.n+' из списка?'))return;S.people.splice(+b.dataset.i,1);for(const d in S.duty){S.duty[d]=S.duty[d].filter(x=>x!==p.n);if(!S.duty[d].length)delete S.duty[d]}dirty=true;ok=''}
+else if(a==='del'){const p=S.people[+b.dataset.i];if(!confirm('Удалить '+p.n+' из списка?'))return;S.people.splice(+b.dataset.i,1);for(const d in S.dezh||{}){S.dezh[d]=S.dezh[d].filter(x=>x!==p.n);if(!S.dezh[d].length)delete S.dezh[d]}for(const d in S.duty){S.duty[d]=S.duty[d].filter(x=>x!==p.n);if(!S.duty[d].length)delete S.duty[d]}dirty=true;ok=''}
 else if(a==='add'){const v=document.getElementById('np').value.trim();if(!v||S.people.some(p=>p.n===v))return;S.people.push({n:v});dirty=true;ok=''}
+else if(a==='zopen')openZ=openZ===b.dataset.d?null:b.dataset.d;
+else if(a==='ztog'){const d=b.dataset.d,n=S.people[+b.dataset.i].n,z=S.dezh||(S.dezh={}),l=z[d]||(z[d]=[]),k=l.indexOf(n);k<0?l.push(n):l.splice(k,1);if(!l.length)delete z[d];dirty=true;ok=''}
 else if(a==='save'){save();return}
 render()});
 document.getElementById('app').addEventListener('change',e=>{const t=e.target;if(!owner||!t.dataset.f)return;const p=S.people[+t.dataset.i];if(t.dataset.f==='oc'){const b=(t.value===''?calc()[p.n].c0:Math.max(0,parseInt(t.value)||0))-calc()[p.n].c0;if(b)p.b=b;else delete p.b}
