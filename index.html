@@ -59,7 +59,7 @@ function migrate(){const st=calc();S.people.forEach(p=>{const o=st[p.n];
 if(p.oc!=null){const b=p.oc-o.c0;if(b)p.b=b;else delete p.b;delete p.oc}
 if(p.ol!=null&&(o.l0||!p.ol))delete p.ol})}
 const DZ_END='2026-12-24';let openZ=null;
-const dzDates=()=>[today,...getDates().filter(d=>d>today&&d<=DZ_END)];
+const dzDates=()=>getDates().filter(d=>d>today&&d<=DZ_END);
 function render(){
 const app=document.getElementById('app');if(!S){app.textContent='Загрузка…';return}
 const dates=getDates(),ppl=S.people,st=calc();
@@ -80,7 +80,7 @@ return c+'</div>'};
 dates.filter(d=>d>today).forEach(d=>h+=card(d));
 h+='</div>';
 h+=`<h2>Ранее ходили в наряд</h2><p class="sub">Прошедшие наряды, от последнего к первому</p><div class="dts">`+[...new Set([...dates.filter(d=>d<=today),...Object.keys(S.duty).filter(d=>d<=today)])].sort().reverse().map(card).join('')+'</div>';
-h+=`<h2>Дежурство</h2><p class="sub">Сегодня и ближайшие даты до 24 декабря</p><div class="dts">`;
+h+=`<h2>Дежурство</h2><div class="dts">`;
 const dz=S.dezh||{};
 h+=dzDates().map(d=>{const l=dz[d]||[];let c=`<div class="dt ${d===today?'nx':''}"><h4><span>${wd(d)}, ${fmt(d)}</span><span class="em">${d===today?'сегодня':''}</span></h4>${l.length?l.map(n=>'<span class="chip">'+n+'</span>').join(''):'<span class="em">никто не назначен</span>'}${owner?'<div><button class="ed" data-a="zopen" data-d="'+d+'">'+(openZ===d?'Закрыть':'Изменить')+'</button></div>':''}`;
 if(owner&&openZ===d)c+='<div class="pick">'+ppl.map((p,i)=>`<button class="${l.includes(p.n)?'on':''}" data-a="ztog" data-d="${d}" data-i="${i}">${p.n}</button>`).join('')+'</div>';
