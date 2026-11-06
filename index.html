@@ -50,11 +50,17 @@ const wd=d=>['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][new Date(d).getUT
 const nw=new Date(),today=nw.getFullYear()+'-'+String(nw.getMonth()+1).padStart(2,'0')+'-'+String(nw.getDate()).padStart(2,'0');
 const ago=d=>Math.round((Date.parse(today)-Date.parse(d))/864e5);
 const getDates=()=>{const a=[];for(let t=Date.parse(S.start);t<=Date.parse(S.end);t+=6048e5)a.push(new Date(t).toISOString().slice(0,10));return a};
+function calc(){const st={};S.people.forEach(p=>st[p.n]={c0:0,c:0,l0:null,l:null,p:null});
+for(const d of Object.keys(S.duty).sort())S.duty[d].forEach(nm=>{const o=st[nm];if(!o)return;if(d<=today){o.c0++;o.l0=d}else if(!o.p)o.p=d});
+S.people.forEach(p=>{const o=st[p.n];o.c=Math.max(0,o.c0+(p.b||0));o.l=o.l0||p.ol||null});return st}
+/* старый формат: oc/ol перекрывали график, поэтому правки старых нарядов ни на что не влияли.
+   oc -> поправка b (добавляется к подсчёту по графику), ol остаётся только если по графику человек ещё не ходил */
+function migrate(){const st=calc();S.people.forEach(p=>{const o=st[p.n];
+if(p.oc!=null){const b=p.oc-o.c0;if(b)p.b=b;else delete p.b;delete p.oc}
+if(p.ol!=null&&(o.l0||!p.ol))delete p.ol})}
 function render(){
 const app=document.getElementById('app');if(!S){app.textContent='Загрузка…';return}
-const dates=getDates(),ppl=S.people,st={};ppl.forEach(p=>st[p.n]={c:0,l:null,p:null});
-for(const d of dates)(S.duty[d]||[]).forEach(nm=>{const o=st[nm];if(!o)return;if(d<=today){o.c++;o.l=d}else if(!o.p)o.p=d});
-ppl.forEach(p=>{const o=st[p.n];if(p.oc!=null)o.c=p.oc;if(p.ol!=null)o.l=p.ol||null});
+const dates=getDates(),ppl=S.people,st=calc();
 const next=dates.find(d=>d>today),max=Math.max(1,...Object.values(st).map(o=>o.c)),total=Object.values(st).reduce((a,o)=>a+o.c,0),elig=ppl.filter(p=>!p.ex).length,nd=S.duty[next]||[];
 const cands=ppl.filter(p=>!p.ex&&!nd.includes(p.n)).map((p,i)=>({p,s:st[p.n],i})).sort((a,b)=>a.s.c-b.s.c||(a.s.l||'').localeCompare(b.s.l||'')||a.i-b.i).slice(0,6);
 let h=`<h2 style="margin-bottom:12px">Кандидаты на ближайший наряд</h2><div class="grid">`;
@@ -62,7 +68,7 @@ cands.forEach((x,k)=>{h+=`<div class="cand"><div class="k">№${k+1}</div><div c
 h+=`</div><h2>Весь список</h2><p class="sub">Фамилия, последний наряд и количество нарядов</p><div class="card"><table><tr><th>№</th><th>Фамилия, инициалы</th><th>Последний наряд</th><th>Нарядов<div style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;max-width:190px;margin-top:2px">Количество нарядов ведется за текущий семестр, а не общее количество</div></th></tr>`;
 ppl.forEach((p,i)=>{const s=st[p.n];
 const tag=p.ex?'<span class="tag x">Не назначается</span>':s.p?'<span class="tag p">Назначен '+fmt(s.p)+'</span>':'<span class="tag">Доступен</span>';
-h+=`<tr><td>${i+1}</td><td><b>${p.n}</b>${owner?' <button class="ed" data-a="del" data-i="'+i+'">✕</button>':''}</td><td>${owner?'<input class="in" type="date" data-f="ol" data-i="'+i+'" value="'+(s.l||'')+'">':(s.l?fmt(s.l)+' <span class="em">('+ago(s.l)+' дн.)</span>':'<span class="em">не ходил</span>')}</td><td>${owner?'<input class="in" type="number" min="0" style="width:64px" data-f="oc" data-i="'+i+'" value="'+s.c+'">':'<b>'+s.c+'</b>'}</td></tr>`});
+h+=`<tr><td>${i+1}</td><td><b>${p.n}</b>${owner?' <button class="ed" data-a="del" data-i="'+i+'">✕</button>':''}</td><td>${owner?'<input class="in" type="date" max="'+today+'" data-f="ol" data-i="'+i+'" value="'+(s.l||'')+'">':(s.l?fmt(s.l)+' <span class="em">('+ago(s.l)+' дн.)</span>':'<span class="em">не ходил</span>')}</td><td>${owner?'<input class="in" type="number" min="0" style="width:64px" data-f="oc" data-i="'+i+'" value="'+s.c+'">'+(p.b?' <span class="em" title="Ручная поправка к подсчёту по графику">по графику: '+s.c0+'</span>':''):'<b>'+s.c+'</b>'}</td></tr>`});
 h+='</table></div>';
 if(owner)h+='<p style="margin-top:10px"><input class="in" id="np" placeholder="Фамилия И.О."> <button data-a="add">Добавить человека</button></p>';
 h+=`<h2 style="margin-bottom:12px">График нарядов</h2><div class="dts">`;
@@ -95,7 +101,10 @@ else if(a==='del'){const p=S.people[+b.dataset.i];if(!confirm('Удалить '+
 else if(a==='add'){const v=document.getElementById('np').value.trim();if(!v||S.people.some(p=>p.n===v))return;S.people.push({n:v});dirty=true;ok=''}
 else if(a==='save'){save();return}
 render()});
-document.getElementById('app').addEventListener('change',e=>{const t=e.target;if(!owner||!t.dataset.f)return;const p=S.people[+t.dataset.i];if(t.dataset.f==='oc')p.oc=t.value===''?null:Math.max(0,parseInt(t.value)||0);else{const nv=t.value||null,old=t.defaultValue,nm=p.n;p.ol=nv;if(nv){if(old&&old!==nv&&S.duty[old]){S.duty[old]=S.duty[old].filter(x=>x!==nm);if(!S.duty[old].length)delete S.duty[old]}const l=S.duty[nv]||(S.duty[nv]=[]);if(!l.includes(nm))l.push(nm)}}dirty=true;ok='';render()});
+document.getElementById('app').addEventListener('change',e=>{const t=e.target;if(!owner||!t.dataset.f)return;const p=S.people[+t.dataset.i];if(t.dataset.f==='oc'){const b=(t.value===''?calc()[p.n].c0:Math.max(0,parseInt(t.value)||0))-calc()[p.n].c0;if(b)p.b=b;else delete p.b}
+else{const nv=t.value||null,old=t.defaultValue,nm=p.n;delete p.ol;
+if(old&&old!==nv&&S.duty[old]){S.duty[old]=S.duty[old].filter(x=>x!==nm);if(!S.duty[old].length)delete S.duty[old]}
+if(nv){const l=S.duty[nv]||(S.duty[nv]=[]);if(!l.includes(nm))l.push(nm)}}dirty=true;ok='';render()});
 render();
-fetch('data.json?'+Date.now()).then(r=>r.json()).then(d=>{S=d;render()}).catch(()=>{document.getElementById('app').textContent='Не удалось загрузить data.json (откройте сайт по адресу GitHub Pages, а не как файл).'});
+fetch('data.json?'+Date.now()).then(r=>r.json()).then(d=>{S=d;migrate();render()}).catch(()=>{document.getElementById('app').textContent='Не удалось загрузить data.json (откройте сайт по адресу GitHub Pages, а не как файл).'});
 </script></body></html>
